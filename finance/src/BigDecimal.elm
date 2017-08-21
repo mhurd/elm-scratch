@@ -1,5 +1,7 @@
 module BigDecimal exposing (..)
 
+import Regex exposing (HowMany, regex)
+
 type alias Precision = Int
 type alias Scale = Int
 type alias IntegerPart = Int
@@ -37,35 +39,33 @@ newRecord : Int -> Maybe Int -> BigDecimal
 newRecord integerPart fractionalPart =
     BigDecimal integerPart fractionalPart (getPrecision integerPart fractionalPart) (getScale fractionalPart)
 
-toBigDecimal : String -> Maybe BigDecimal
+toBigDecimal : String -> Result String BigDecimal
 toBigDecimal s =
     let parts = String.split "." s
         ints = List.map String.toInt parts
     in
         case ints of
-            [] -> Nothing
+            [] -> Err "No number specified!"
             [integerPart] -> case integerPart of
-                Err msg -> Nothing
-                Ok integerPart -> Just (newRecord integerPart Nothing)
+                Err msg -> Err msg
+                Ok integerPart -> Ok (newRecord integerPart Nothing)
             [integerPart, fractionalPart] -> case integerPart of
                 Err msg -> case fractionalPart of
-                    Err msg -> Nothing
-                    Ok fractionalPart -> Just (newRecord 0 (Just fractionalPart))
+                    Err msg -> Err msg
+                    Ok fractionalPart -> Ok (newRecord 0 (Just fractionalPart))
                 Ok integerPart -> case fractionalPart of
-                    Err msg -> Just (newRecord integerPart Nothing)
-                    Ok fractionalPart -> Just (newRecord integerPart (Just fractionalPart))
-            _ -> Nothing
+                    Err msg -> Ok (newRecord integerPart Nothing)
+                    Ok fractionalPart -> Ok (newRecord integerPart (Just fractionalPart))
+            _ -> Err "To many '.' characters!"
 
-stripTrailingZeros : Maybe BigDecimal -> Maybe BigDecimal
+stripTrailingZeros : BigDecimal -> BigDecimal
 stripTrailingZeros bd =
-    case bd of
-        Just bd -> case bd.fractionalPart of
-                       Just val ->
-                           let
-                               newInt = toString val |> String.toList |> List.filter (\n -> n /= '0') |> String.fromList |> String.toInt
-                           in
-                               case newInt of
-                                   Err msg -> Just bd
-                                   Ok newFractionalPart -> Just (updateFractionalPart newFractionalPart bd)
-                       Nothing -> Just bd
-        Nothing -> Nothing
+        case bd.fractionalPart of
+            Just val ->
+                let
+                    newInt = toString val |> Regex.replace Regex.All (regex "[0]+$") (\_ -> "") |> String.toInt
+                in
+                    case newInt of
+                        Err msg -> bd -- do nothing this number looks strange
+                        Ok newFractionalPart -> updateFractionalPart newFractionalPart bd
+            Nothing -> bd
