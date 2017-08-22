@@ -2,6 +2,7 @@ module BigDecimal exposing (..)
 
 import Regex exposing (HowMany, regex)
 
+type RoundingMode = HalfUp | HalfDown
 type alias Precision = Int
 type alias Scale = Int
 type alias IntegerPart = Int
@@ -11,6 +12,25 @@ type alias BigDecimal =
     fractionalPart : FractionalPart,
     precision : Precision,
     scale : Scale}
+
+-- TODO: ignores rounding mode - just truncates the number
+-- TODO: protect against negative scale - return Result?
+setScale : Int -> RoundingMode -> BigDecimal -> BigDecimal
+setScale scale roundingMode bd =
+    if scale < bd.scale then
+        case bd.fractionalPart of
+            Just fp ->  updateFractionalPart (fp // 10 ^ (bd.scale - scale)) bd
+            Nothing -> bd -- shouldn't happen
+    else
+        let
+            newFractionalPart =
+                case bd.fractionalPart of
+                    Just fp -> (toString fp) ++ (String.repeat (scale - bd.scale) "0") |> String.toInt
+                    Nothing -> bd -- shouldn't happen
+        in
+            case newFractionalPart of
+                Err msg -> bd -- Shouldn't happen
+                Ok fractionalPart -> updateFractionalPart fractionalPart bd
 
 getScale : Maybe Int -> Int
 getScale fractionalPart =
@@ -69,3 +89,4 @@ stripTrailingZeros bd =
                         Err msg -> bd -- do nothing this number looks strange
                         Ok newFractionalPart -> updateFractionalPart newFractionalPart bd
             Nothing -> bd
+
